@@ -4,13 +4,21 @@ import mujoco.viewer
 from robot_descriptions.loaders.mujoco import load_robot_description
 import rclpy
 import rclpy.node
+from rclpy.executors import SingleThreadedExecutor
 from sensor_msgs.msg import Imu
+from mavros_msgs.msg import ActuatorControl
+import threading
 
 
 def main(args=None):
     rclpy.init(args=args)
 
+    exec = SingleThreadedExecutor()
     node = rclpy.node.Node("mujoco_drone_simulator")
+    exec.add_node(node)
+
+    exec_thread = threading.Thread(target=exec.spin, daemon=True)
+    exec_thread.start()
 
     pub_imu = node.create_publisher(Imu, "~/imu", 1)
 
@@ -34,6 +42,18 @@ def main(args=None):
         return imu_msg
 
     d = mujoco.MjData(m)
+
+    def on_actuators(msg):
+        for i, v in enumerate(msg.controls):
+            name = f"thrust{i+1}"
+            id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, name)
+            if id >= 0:
+                ctrlmin = m.actuator_ctrlrange[id][0]
+                ctrlmax = m.actuator_ctrlrange[id][1]
+                # clip to range [0, 1] and scale to min/max control range
+                d.actuator(name).ctrl = ctrlmin + min(max(0,v),1) * (ctrlmax - ctrlmin)
+
+    sub_pwm = node.create_subscription(ActuatorControl, "~/actuators", on_actuators, 1)
 
     try:
         with mujoco.viewer.launch_passive(m, d) as viewer:
