@@ -35,12 +35,16 @@ def main(args=None):
 
     d = mujoco.MjData(m)
 
-    with mujoco.viewer.launch_passive(m, d) as viewer:
-        while viewer.is_running():
-            mujoco.mj_step(m, d)
-            viewer.sync()
+    try:
+        with mujoco.viewer.launch_passive(m, d) as viewer:
+            while viewer.is_running():
+                mujoco.mj_step(m, d)
+                viewer.sync()
 
-            pub_imu.publish(imu_msg(d))
+                pub_imu.publish(imu_msg(d))
+
+    except KeyboardInterrupt:
+        pass
 
 if __name__ == '__main__':
     main()
