@@ -55,6 +55,8 @@ def main(args=None):
 
     sub_pwm = node.create_subscription(ActuatorControl, "~/actuators", on_actuators, 1)
 
+    rate = node.create_rate(500)
+
     try:
         with mujoco.viewer.launch_passive(m, d) as viewer:
             while viewer.is_running():
@@ -62,6 +64,8 @@ def main(args=None):
                 viewer.sync()
 
                 pub_imu.publish(imu_msg(d))
+
+                rate.sleep()
 
     except KeyboardInterrupt:
         pass
