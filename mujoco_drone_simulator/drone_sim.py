@@ -24,6 +24,8 @@ def main(args=None):
 
     model_name = "skydio_x2"
     m = load_robot_description(f"{model_name}_mj_description", variant="scene")
+    d = mujoco.MjData(m)
+
 
     sensor_names = dict()
     for i, t in enumerate(m.sensor_type):
@@ -40,8 +42,6 @@ def main(args=None):
         (imu_msg.linear_acceleration.x, imu_msg.linear_acceleration.y, imu_msg.linear_acceleration.z) = \
             model_data.sensor(sensor_names[mujoco.mjtSensor.mjSENS_ACCELEROMETER]).data
         return imu_msg
-
-    d = mujoco.MjData(m)
 
     def on_actuators(msg):
         for i, v in enumerate(msg.controls):
