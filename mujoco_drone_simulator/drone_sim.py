@@ -7,6 +7,8 @@ import rclpy.node
 from rclpy.executors import SingleThreadedExecutor
 from sensor_msgs.msg import Imu
 from mavros_msgs.msg import ActuatorControl
+from tf2_ros import TransformBroadcaster
+from geometry_msgs.msg import TransformStamped
 import threading
 
 
@@ -21,6 +23,7 @@ def main(args=None):
     exec_thread.start()
 
     pub_imu = node.create_publisher(Imu, "~/imu", 1)
+    tf_broadcaster = TransformBroadcaster(node)
 
     model_name = "skydio_x2"
     m = load_robot_description(f"{model_name}_mj_description", variant="scene")
@@ -43,6 +46,27 @@ def main(args=None):
             model_data.sensor(sensor_names[mujoco.mjtSensor.mjSENS_ACCELEROMETER]).data
         return imu_msg
 
+    def tf_msgs(m, d) -> TransformStamped:
+        transforms = list()
+        for i in range(m.nbody):
+            body_name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, i)
+            if body_name:
+                transform_stamped = TransformStamped()
+                transform_stamped.header.stamp = rclpy.time.Time(seconds=d.time).to_msg()
+                transform_stamped.header.frame_id = "world"
+                transform_stamped.child_frame_id = "mujoco/"+body_name
+
+                transform_stamped.transform.translation.x = d.xpos[i][0]
+                transform_stamped.transform.translation.y = d.xpos[i][1]
+                transform_stamped.transform.translation.z = d.xpos[i][2]
+                transform_stamped.transform.rotation.w = d.xquat[i][0]
+                transform_stamped.transform.rotation.x = d.xquat[i][1]
+                transform_stamped.transform.rotation.y = d.xquat[i][2]
+                transform_stamped.transform.rotation.z = d.xquat[i][3]
+                transforms.append(transform_stamped)
+
+        return transforms
+
     def on_actuators(msg):
         for i, v in enumerate(msg.controls):
             name = f"thrust{i+1}"
@@ -64,7 +88,7 @@ def main(args=None):
                 viewer.sync()
 
                 pub_imu.publish(imu_msg(d))
-
+                tf_broadcaster.sendTransform(tf_msgs(m, d))
                 rate.sleep()
 
     except KeyboardInterrupt:
